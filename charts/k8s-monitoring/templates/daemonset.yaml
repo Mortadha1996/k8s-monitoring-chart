@@ -1,0 +1,31 @@
+{{- if .Values.nodeExporter.enabled }}
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ include "k8s-monitoring.fullname" . }}-node-exporter
+  namespace: {{ .Values.namespace }}
+  labels: {{- include "k8s-monitoring.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels: &sel
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: node-exporter
+  template:
+    metadata:
+      labels: *sel
+    spec:
+      hostNetwork: true
+      hostPID: true
+      containers:
+        - name: node-exporter
+          image: "{{ .Values.nodeExporter.image.repository }}:{{ .Values.nodeExporter.image.tag }}"
+          args:
+            - --path.rootfs=/host
+            - --collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)
+          ports: [{ containerPort: 9100, hostPort: 9100 }]
+          volumeMounts:
+            - { name: root, mountPath: /host, readOnly: true }
+      volumes:
+        - name: root
+          hostPath: { path: / }
+{{- end }}

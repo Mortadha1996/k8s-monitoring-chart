@@ -1,0 +1,35 @@
+{{- if .Values.alertmanager.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "k8s-monitoring.fullname" . }}-alertmanager-config
+  namespace: {{ .Values.namespace }}
+data:
+  alertmanager.yml: |
+    route:
+      receiver: default
+      routes:
+        {{- if .Values.alertmanager.receivers.slack.enabled }}
+        - match: { severity: critical }
+          receiver: slack
+          continue: true
+        {{- end }}
+        {{- if .Values.alertmanager.receivers.email.enabled }}
+        - match: { severity: warning }
+          receiver: email
+        {{- end }}
+    receivers:
+      - name: default
+      {{- if .Values.alertmanager.receivers.slack.enabled }}
+      - name: slack
+        slack_configs:
+          - api_url: {{ .Values.alertmanager.receivers.slack.webhookUrl | quote }}
+            channel: {{ .Values.alertmanager.receivers.slack.channel | quote }}
+            send_resolved: true
+      {{- end }}
+      {{- if .Values.alertmanager.receivers.email.enabled }}
+      - name: email
+        email_configs:
+          - to: {{ .Values.alertmanager.receivers.email.to | quote }}
+      {{- end }}
+{{- end }}

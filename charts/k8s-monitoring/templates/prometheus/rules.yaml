@@ -1,0 +1,130 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "k8s-monitoring.fullname" . }}-rules
+  namespace: {{ .Release.Namespace }}
+data:
+  alerts.yml: |
+    groups:
+    {{- if .Values.alerts.nodeHealth }}
+      - name: node-health
+        rules:
+          - alert: NodeNotReady
+            expr: kube_node_status_condition{condition="Ready",status="true"} == 0
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Node {{ "{{" }} $labels.node {{ "}}" }} has been NotReady for 5 minutes"
+              description: "Workloads scheduled on this node will be evicted after the toleration period."
+
+          - alert: NodeMemoryPressure
+            expr: kube_node_status_condition{condition="MemoryPressure",status="true"} == 1
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Node {{ "{{" }} $labels.node {{ "}}" }} is under memory pressure"
+              description: "The kubelet will start evicting pods to reclaim memory."
+
+          - alert: NodeDiskPressure
+            expr: kube_node_status_condition{condition="DiskPressure",status="true"} == 1
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Node {{ "{{" }} $labels.node {{ "}}" }} is under disk pressure"
+              description: "Pods will be evicted and image pulls will fail."
+    {{- end }}
+
+    {{- if .Values.alerts.podHealth }}
+      - name: pod-health
+        rules:
+          - alert: PodCrashLooping
+            expr: rate(kube_pod_container_status_restarts_total[15m]) * 60 * 15 > 3
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Pod {{ "{{" }} $labels.namespace {{ "}}" }}/{{ "{{" }} $labels.pod {{ "}}" }} is restarting repeatedly"
+              description: "More than 3 restarts in 15 minutes. Check logs with --previous."
+
+          - alert: PodNotReady
+            expr: |
+              sum by (namespace, pod) (
+                max by (namespace, pod) (kube_pod_status_phase{phase=~"Pending|Unknown"})
+                * on (namespace, pod) group_left(owner_kind)
+                topk by (namespace, pod) (1, max by (namespace, pod, owner_kind) (kube_pod_owner{owner_kind!="Job"}))
+              ) > 0
+            for: 15m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Pod {{ "{{" }} $labels.namespace {{ "}}" }}/{{ "{{" }} $labels.pod {{ "}}" }} not ready for 15 minutes"
+
+          - alert: ContainerOOMKilled
+            expr: increase(kube_pod_container_status_last_terminated_reason{reason="OOMKilled"}[10m]) > 0
+            labels:
+              severity: warning
+            annotations:
+              summary: "Container in {{ "{{" }} $labels.namespace {{ "}}" }}/{{ "{{" }} $labels.pod {{ "}}" }} was OOMKilled"
+              description: "The memory limit is too low, or the application has a leak."
+    {{- end }}
+
+    {{- if .Values.alerts.resourcePressure }}
+      - name: resource-pressure
+        rules:
+          - alert: HighNodeCPU
+            expr: |
+              100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 85
+            for: 15m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Node {{ "{{" }} $labels.instance {{ "}}" }} CPU above 85% for 15 minutes"
+
+          - alert: HighNodeMemory
+            expr: |
+              (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 90
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Node {{ "{{" }} $labels.instance {{ "}}" }} memory above 90%"
+
+          - alert: PodMemoryNearLimit
+            expr: |
+              (container_memory_working_set_bytes{container!=""}
+               / on(namespace,pod,container) kube_pod_container_resource_limits{resource="memory"}) > 0.90
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: "{{ "{{" }} $labels.namespace {{ "}}" }}/{{ "{{" }} $labels.pod {{ "}}" }} is at 90% of its memory limit"
+              description: "OOMKill is likely. Raise the limit or investigate the growth."
+    {{- end }}
+
+    {{- if .Values.alerts.diskSpace }}
+      - name: disk-space
+        rules:
+          - alert: DiskWillFillIn4Hours
+            expr: |
+              predict_linear(node_filesystem_avail_bytes{fstype!~"tmpfs|fuse.lxcfs"}[1h], 4*3600) < 0
+              and node_filesystem_avail_bytes{fstype!~"tmpfs|fuse.lxcfs"} / node_filesystem_size_bytes < 0.25
+            for: 30m
+            labels:
+              severity: warning
+            annotations:
+              summary: "{{ "{{" }} $labels.instance {{ "}}" }} {{ "{{" }} $labels.mountpoint {{ "}}" }} projected to fill within 4 hours"
+              description: "Based on the trend over the last hour. Acting now is cheaper than at 100%."
+
+          - alert: DiskSpaceCritical
+            expr: |
+              node_filesystem_avail_bytes{fstype!~"tmpfs|fuse.lxcfs"}
+              / node_filesystem_size_bytes < 0.10
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: "{{ "{{" }} $labels.instance {{ "}}" }} {{ "{{" }} $labels.mountpoint {{ "}}" }} below 10% free"
+    {{- end }}

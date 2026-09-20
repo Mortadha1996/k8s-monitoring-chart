@@ -1,0 +1,12 @@
+{{- if .Values.kubeStateMetrics.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "k8s-monitoring.fullname" . }}-kube-state-metrics
+  namespace: {{ .Values.namespace }}
+spec:
+  selector:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: kube-state-metrics
+  ports: [{ port: 8080, targetPort: 8080 }]
+{{- end }}

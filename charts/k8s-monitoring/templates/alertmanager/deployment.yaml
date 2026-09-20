@@ -1,0 +1,34 @@
+{{- if .Values.alertmanager.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "k8s-monitoring.fullname" . }}-alertmanager
+  namespace: {{ .Values.namespace }}
+  labels: {{- include "k8s-monitoring.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: &sel
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: alertmanager
+  template:
+    metadata:
+      labels: *sel
+    spec:
+      containers:
+        - name: alertmanager
+          image: "{{ .Values.alertmanager.image.repository }}:{{ .Values.alertmanager.image.tag }}"
+          args:
+            - --config.file=/etc/alertmanager/alertmanager.yml
+            - --storage.path=/alertmanager
+          ports: [{ containerPort: 9093 }]
+          resources: {{- toYaml .Values.alertmanager.resources | nindent 12 }}
+          volumeMounts:
+            - { name: config, mountPath: /etc/alertmanager }
+            - { name: storage, mountPath: /alertmanager }
+      volumes:
+        - name: config
+          configMap: { name: {{ include "k8s-monitoring.fullname" . }}-alertmanager-config }
+        - name: storage
+          emptyDir: {}
+{{- end }}

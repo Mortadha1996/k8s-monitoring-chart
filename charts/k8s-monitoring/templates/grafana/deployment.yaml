@@ -1,0 +1,38 @@
+{{- if .Values.grafana.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "k8s-monitoring.fullname" . }}-grafana
+  namespace: {{ .Values.namespace }}
+  labels: {{- include "k8s-monitoring.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: &sel
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: grafana
+  template:
+    metadata:
+      labels: *sel
+    spec:
+      containers:
+        - name: grafana
+          image: "{{ .Values.grafana.image.repository }}:{{ .Values.grafana.image.tag }}"
+          env:
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              value: {{ .Values.grafana.adminPassword | quote }}
+            - name: GF_AUTH_ANONYMOUS_ENABLED
+              value: {{ .Values.grafana.anonymousAccess | quote }}
+          ports: [{ containerPort: 3000 }]
+          resources: {{- toYaml .Values.grafana.resources | nindent 12 }}
+          volumeMounts:
+            - name: storage
+              mountPath: /var/lib/grafana
+      volumes:
+        - name: storage
+          {{- if .Values.grafana.persistence.enabled }}
+          persistentVolumeClaim: { claimName: {{ include "k8s-monitoring.fullname" . }}-grafana }
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+{{- end }}
