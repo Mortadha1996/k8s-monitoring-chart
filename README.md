@@ -142,6 +142,13 @@ alertmanager:
 Put the webhook in a Kubernetes Secret rather than in values.yaml. A webhook URL in a Git repository is a credential leak.
 
 ---
+## Screenshot
+
+Prometheus alert rules configured by the Helm chart.
+
+![Prometheus Alert Rules](docs/screenshots/prometheus-alert-rules.png)
+
+
 
 ## Author
 
@@ -153,8 +160,3 @@ Red Hat Certified Specialist in Containers (EX188) · RHCE · RHCSA · AWS Solut
 
 ---
 
-## Screenshot
-
-Prometheus alert rules configured by the Helm chart.
-
-![Prometheus Alert Rules](docs/screenshots/prometheus-alert-rules.png)
