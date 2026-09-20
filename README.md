@@ -157,4 +157,4 @@ Red Hat Certified Specialist in Containers (EX188) · RHCE · RHCSA · AWS Solut
 
 Prometheus alert rules configured by the Helm chart.
 
-![Prometheus Alert Rules](screenshots/prometheus-alert-rules.png)
+![Prometheus Alert Rules](docs/screenshots/prometheus-alert-rules.png)
